@@ -290,6 +290,7 @@ def main():
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
             streaming=data_args.streaming,
+            num_proc=data_args.preprocessing_num_workers,
         )
         if "validation" not in raw_datasets.keys():
             raw_datasets["validation"] = load_dataset(
@@ -299,6 +300,7 @@ def main():
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
                 streaming=data_args.streaming,
+                num_proc=data_args.preprocessing_num_workers,
             )
             raw_datasets["train"] = load_dataset(
                 data_args.dataset_name,
@@ -307,6 +309,7 @@ def main():
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
                 streaming=data_args.streaming,
+                num_proc=data_args.preprocessing_num_workers,
             )
     else:
         data_files = {}
@@ -631,7 +634,7 @@ def main():
             kwargs["dataset"] = data_args.dataset_name
 
     if training_args.push_to_hub:
-        trainer.push_to_hub(**kwargs)
+        trainer.push_to_hub()
     else:
         trainer.create_model_card(**kwargs)
 
