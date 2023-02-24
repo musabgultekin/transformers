@@ -566,7 +566,7 @@ def main():
             mask = labels != -100
             labels = labels[mask]
             preds = preds[mask]
-            return metric.compute(predictions=preds, references=labels)
+            return metric.compute(predictions=preds, references=labels, average='micro')
 
     # Data collator
     # This one will take care of randomly masking the tokens.
