@@ -555,7 +555,10 @@ def main():
                 logits = logits[0]
             return logits.argmax(dim=-1)
 
-        metric = evaluate.combine(["accuracy", "f1", "precision", "recall"])
+        metric_accuracy = evaluate.load("accuracy")
+        metric_f1 = evaluate.load("f1")
+        metric_precision = evaluate.load("precision")
+        metric_recall = evaluate.load("recall")
 
         def compute_metrics(eval_preds):
             preds, labels = eval_preds
@@ -566,7 +569,12 @@ def main():
             mask = labels != -100
             labels = labels[mask]
             preds = preds[mask]
-            return metric.compute(predictions=preds, references=labels, average='micro')
+            
+            accuracy = metric_accuracy.compute(predictions=preds, references=labels)
+            f1 = metric_f1.compute(predictions=preds, references=labels, average='micro')
+            precision = metric_precision.compute(predictions=preds, references=labels, average='micro')
+            recall = metric_recall.compute(predictions=preds, references=labels, average='micro')
+            return {**accuracy, **f1, **precision, **recall} 
 
     # Data collator
     # This one will take care of randomly masking the tokens.
