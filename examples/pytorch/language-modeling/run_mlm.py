@@ -651,7 +651,15 @@ def main():
                         if training_args.do_eval and not is_torch_tpu_available()
                         else None,
                     )
-                    trainer.train()
+                    train_result = trainer.train()
+                    trainer.log_metrics("train", train_result.metrics)
+                    trainer.save_metrics("train", train_result.metrics)
+                    
+                    metrics_eval = trainer.eval()
+                    trainer.log_metrics("eval", metrics_eval)
+                    trainer.save_metrics("eval", metrics_eval)
+                    
+                                       
 
 
             wandb.agent(sweep_id, train, count=20)
