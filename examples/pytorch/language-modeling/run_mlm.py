@@ -129,6 +129,9 @@ class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
+    hyperparameter_search: bool = field(
+        default=False, metadata={"help": "Search different hyperparemeters"}
+    )
 
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
@@ -584,43 +587,85 @@ def main():
         mlm_probability=data_args.mlm_probability,
         pad_to_multiple_of=8 if pad_to_multiple_of_8 else None,
     )
-
-    # Initialize our Trainer
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset if training_args.do_eval else None,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-        preprocess_logits_for_metrics=preprocess_logits_for_metrics
-        if training_args.do_eval and not is_torch_tpu_available()
-        else None,
-    )
+    
 
     # Training
-    if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        trainer.save_model()  # Saves the tokenizer too for easy upload
-        metrics = train_result.metrics
+    if training_args.do_train:  
+        # Hyperparameter Search
+        if data_args.hyperparameter_search:
+            def wandb_hp_space(trial):
+                return {
+                    "method": "random",
+                    "metric": {"name": "f1", "goal": "maximize"},
+                    "parameters": {
+                        "learning_rate": {"distribution": "log_uniform_values", "min": 1e-6, "max": 1e-3},
+                    },
+                }    
+            def model_init(trial):
+                return model
 
-        max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-        )
-        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+            def compute_objective(metrics):
+                """Only optimize for F1"""
+                return metrics["f1"]
 
-        trainer.log_metrics("train", metrics)
-        trainer.save_metrics("train", metrics)
-        trainer.save_state()
+            # Initialize our Trainer for hyperparameter search
+            trainer = Trainer(
+                model=None,
+                args=training_args,
+                train_dataset=train_dataset if training_args.do_train else None,
+                eval_dataset=eval_dataset if training_args.do_eval else None,
+                tokenizer=tokenizer,
+                model_init=model_init,
+                data_collator=data_collator,
+                compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+                preprocess_logits_for_metrics=preprocess_logits_for_metrics
+                if training_args.do_eval and not is_torch_tpu_available()
+                else None,
+            )
+
+            train_result = trainer.hyperparameter_search(
+                direction="maximize",
+                metric="f1",
+                backend="wandb",
+                hp_space=wandb_hp_space,
+                n_trials=20,
+                compute_objective=compute_objective,
+            )
+        else:
+            # Initialize our Trainer
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset if training_args.do_train else None,
+                eval_dataset=eval_dataset if training_args.do_eval else None,
+                tokenizer=tokenizer,
+                data_collator=data_collator,
+                compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+                preprocess_logits_for_metrics=preprocess_logits_for_metrics
+                if training_args.do_eval and not is_torch_tpu_available()
+                else None,
+            )
+
+            checkpoint = None
+            if training_args.resume_from_checkpoint is not None:
+                checkpoint = training_args.resume_from_checkpoint
+            elif last_checkpoint is not None:
+                checkpoint = last_checkpoint
+            train_result = trainer.train(resume_from_checkpoint=checkpoint)
+            trainer.save_model()  # Saves the tokenizer too for easy upload
+            metrics = train_result.metrics
+
+            max_train_samples = (
+                data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
+            )
+            metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+
+            trainer.log_metrics("train", metrics)
+            trainer.save_metrics("train", metrics)
+            trainer.save_state()
 
     # Evaluation
-    if training_args.do_eval:
+    if training_args.do_eval and not data_args.hyperparameter_search:
         logger.info("*** Evaluate ***")
 
         metrics = trainer.evaluate()
