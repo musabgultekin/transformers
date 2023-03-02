@@ -593,44 +593,70 @@ def main():
     if training_args.do_train:  
         # Hyperparameter Search
         if data_args.hyperparameter_search:
-            def wandb_hp_space(trial):
-                return {
-                    "method": "random",
-                    "metric": {"name": "f1", "goal": "maximize"},
-                    "parameters": {
-                        "learning_rate": {"distribution": "log_uniform_values", "min": 1e-6, "max": 1e-3},
-                    },
-                }    
+            import wandb
+
+            
+            # method
+            sweep_config = {
+                'method': 'random',
+                'metric': {
+                    'goal': 'maximize', 
+                    'name': 'eval/f1'
+                },
+            }
+
+            # hyperparameters
+            parameters_dict = {
+                'epochs': {
+                    'value': 1
+                 },
+                'learning_rate': {
+                    'distribution': 'log_uniform_values',
+                    'min': 1e-6,
+                    'max': 1e-3
+                },
+                'weight_decay': {
+                    'values': [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+                },
+            }
+
+            sweep_config['parameters'] = parameters_dict
+
+            sweep_id = wandb.sweep(sweep_config)
+            
             def model_init(trial):
                 return model
 
-            def compute_objective(metrics):
-                """Only optimize for F1"""
-                return metrics["f1"]
+            def train(config=None):
+                with wandb.init(config=config):
+                    # set sweep configuration
+                    config = wandb.config
+                    
+                    # Set wandb hyper parameters
+                    training_args.learning_rate = config.learning_rate
+                    training_args.num_train_epochs = config.epochs
+                    training_args.weight_decay = config.weight_decay
 
-            # Initialize our Trainer for hyperparameter search
-            trainer = Trainer(
-                model=None,
-                args=training_args,
-                train_dataset=train_dataset if training_args.do_train else None,
-                eval_dataset=eval_dataset if training_args.do_eval else None,
-                tokenizer=tokenizer,
-                model_init=model_init,
-                data_collator=data_collator,
-                compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-                preprocess_logits_for_metrics=preprocess_logits_for_metrics
-                if training_args.do_eval and not is_torch_tpu_available()
-                else None,
-            )
+                    # Initialize our Trainer for hyperparameter search
+                    trainer = Trainer(
+                        model=None,
+                        args=training_args,
+                        train_dataset=train_dataset if training_args.do_train else None,
+                        eval_dataset=eval_dataset if training_args.do_eval else None,
+                        tokenizer=tokenizer,
+                        model_init=model_init,
+                        data_collator=data_collator,
+                        compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+                        preprocess_logits_for_metrics=preprocess_logits_for_metrics
+                        if training_args.do_eval and not is_torch_tpu_available()
+                        else None,
+                    )
+                    trainer.train()
 
-            train_result = trainer.hyperparameter_search(
-                direction="maximize",
-                metric="f1",
-                backend="wandb",
-                hp_space=wandb_hp_space,
-                n_trials=20,
-                compute_objective=compute_objective,
-            )
+
+            wandb.agent(sweep_id, train, count=20)
+            
+
         else:
             # Initialize our Trainer
             trainer = Trainer(
@@ -690,10 +716,11 @@ def main():
         else:
             kwargs["dataset"] = data_args.dataset_name
 
-    if training_args.push_to_hub:
-        trainer.push_to_hub()
-    else:
-        trainer.create_model_card(**kwargs)
+    if not data_args.hyperparameter_search:
+        if training_args.push_to_hub:
+            trainer.push_to_hub()
+        else:
+            trainer.create_model_card(**kwargs)
 
 
 def _mp_fn(index):
