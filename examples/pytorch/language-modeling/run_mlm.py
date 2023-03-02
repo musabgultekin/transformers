@@ -652,10 +652,10 @@ def main():
                         else None,
                     )
                     train_result = trainer.train()
-                    trainer.log_metrics("train", train_result.metrics)
-                    trainer.save_metrics("train", train_result.metrics)
+                    #trainer.log_metrics("train", train_result.metrics)
+                    #trainer.save_metrics("train", train_result.metrics)
                     
-                    metrics_eval = trainer.eval()
+                    metrics_eval = trainer.evaluate()
                     trainer.log_metrics("eval", metrics_eval)
                     trainer.save_metrics("eval", metrics_eval)
                     
