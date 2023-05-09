@@ -3932,7 +3932,7 @@ class TokenizerTesterMixin:
             tokenizer_fast.save_pretrained(tmp_dir_2)
             tokenizer = BertTokenizer.from_pretrained(tmp_dir_2)
 
-        assert tokenizer_fast.clean_up_tokenization_spaces is False
+        assert tokenizer.clean_up_tokenization_spaces is False
         decoded = tokenizer.decode(tokens)
         assert decoded == "[CLS] this shouldn ' t be ! he ' ll go . [SEP]"
 
@@ -3954,7 +3954,7 @@ class TokenizerUtilTester(unittest.TestCase):
         _ = BertTokenizer.from_pretrained("hf-internal-testing/tiny-random-bert")
 
         # Under the mock environment we get a 500 error when trying to reach the tokenizer.
-        with mock.patch("requests.request", return_value=response_mock) as mock_head:
+        with mock.patch("requests.Session.request", return_value=response_mock) as mock_head:
             _ = BertTokenizer.from_pretrained("hf-internal-testing/tiny-random-bert")
             # This check we did call the fake head request
             mock_head.assert_called()
@@ -3972,7 +3972,7 @@ class TokenizerUtilTester(unittest.TestCase):
         _ = GPT2TokenizerFast.from_pretrained("gpt2")
 
         # Under the mock environment we get a 500 error when trying to reach the tokenizer.
-        with mock.patch("requests.request", return_value=response_mock) as mock_head:
+        with mock.patch("requests.Session.request", return_value=response_mock) as mock_head:
             _ = GPT2TokenizerFast.from_pretrained("gpt2")
             # This check we did call the fake head request
             mock_head.assert_called()

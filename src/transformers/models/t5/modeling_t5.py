@@ -1746,6 +1746,8 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss(ignore_index=-100)
+            # move labels to correct device to enable PP
+            labels = labels.to(lm_logits.device)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
@@ -1772,6 +1774,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
         attention_mask=None,
         head_mask=None,
         decoder_head_mask=None,
+        decoder_attention_mask=None,
         cross_attn_head_mask=None,
         use_cache=None,
         encoder_outputs=None,
@@ -1788,6 +1791,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
             "attention_mask": attention_mask,
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
+            "decoder_attention_mask": decoder_attention_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
             "use_cache": use_cache,
         }
